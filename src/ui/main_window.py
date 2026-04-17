@@ -165,6 +165,9 @@ class ScrcpyGUI(QMainWindow):
     def _on_load_bigmap(self):
         self.ui_handlers._on_load_bigmap()
 
+    def _on_locate_toggled(self, checked):
+        self.ui_handlers._on_locate_toggled(checked)
+
     def _on_frame_received(self, frame):
         self.ui_handlers._on_frame_received(frame)
 
@@ -192,9 +195,14 @@ class ScrcpyGUI(QMainWindow):
         # 立即保存配置
         self._do_save_config()
 
+        # 停止推流线程
         if self.stream_thread and self.stream_thread.isRunning():
             self.stream_thread.stop()
             self.stream_thread.wait(5000)
+
+        # 停止定位线程
+        if hasattr(self, 'localization_thread') and self.localization_thread.isRunning():
+            self.localization_thread.stop_localization()
 
         event.accept()
 

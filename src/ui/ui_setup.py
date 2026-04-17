@@ -261,6 +261,14 @@ def _create_action_section(main_window):
     main_window.load_bigmap_btn.setToolTip("加载大地图图片用于显示完整地图")
     action_layout.addWidget(main_window.load_bigmap_btn)
 
+    # 实时定位按钮
+    main_window.locate_btn = QPushButton("📍 开始定位")
+    main_window.locate_btn.setObjectName("locate")
+    main_window.locate_btn.setToolTip("开启/关闭大地图实时定位")
+    main_window.locate_btn.setCheckable(True)
+    main_window.locate_btn.setEnabled(False) # 默认禁用，需推流且加载大地图
+    action_layout.addWidget(main_window.locate_btn)
+
     action_group.setLayout(action_layout)
     return action_group
 
@@ -395,6 +403,29 @@ class BigMapView(QGraphicsView):
         else:
             self.zoom_out()
 
+    def update_marker(self, center_x, center_y, success=True):
+        """
+        在地图上更新定位标记
+        """
+        from PySide6.QtWidgets import QGraphicsEllipseItem
+        from PySide6.QtGui import QPen, QColor, QBrush
+        
+        if not hasattr(self, 'marker_item'):
+            # 创建红色空心圆圈标记
+            self.marker_item = QGraphicsEllipseItem(-15, -15, 30, 30)
+            pen = QPen(QColor(255, 0, 0))
+            pen.setWidth(3)
+            self.marker_item.setPen(pen)
+            self.scene.addItem(self.marker_item)
+            # 设置高Z值以确保显示在图片上层
+            self.marker_item.setZValue(10)
+            
+        if success:
+            self.marker_item.setPos(center_x, center_y)
+            self.marker_item.show()
+        else:
+            self.marker_item.hide()
+
 
 def _create_bigmap_section(main_window):
     """
@@ -466,6 +497,7 @@ def _setup_connections(main_window):
     main_window.stop_btn.clicked.connect(main_window._on_stop)
     main_window.screenshot_btn.clicked.connect(main_window._on_screenshot)
     main_window.load_bigmap_btn.clicked.connect(main_window._on_load_bigmap)
+    main_window.locate_btn.toggled.connect(main_window._on_locate_toggled)
 
     # 配置保存防抖
     main_window.resolution.currentTextChanged.connect(main_window._schedule_save_config)

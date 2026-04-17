@@ -246,6 +246,7 @@ class UIHandlers:
         self.main_window.start_btn.setEnabled(False)
         self.main_window.stop_btn.setEnabled(True)
         self.main_window.screenshot_btn.setEnabled(True)  # 推流时启用截图
+        self._check_locate_btn_state()
         self.main_window._log("✓ 推流已启动")
 
         # 标记推流开始
@@ -283,6 +284,12 @@ class UIHandlers:
         self.main_window.start_btn.setEnabled(True)
         self.main_window.stop_btn.setEnabled(False)
         self.main_window.screenshot_btn.setEnabled(False)  # 停止推流时禁用截图
+        
+        # 停止定位
+        if self.main_window.locate_btn.isChecked():
+            self.main_window.locate_btn.setChecked(False)
+        self.main_window.locate_btn.setEnabled(False)
+        
         self.main_window._log("推流已停止")
 
         # 标记推流停止
@@ -375,6 +382,8 @@ class UIHandlers:
 
             self.main_window._log(f"✓ 大地图已加载: {width}x{height}")
             self.main_window.status_bar.showMessage(f"大地图已加载: {width}x{height}", 3000)
+            
+            self._check_locate_btn_state()
 
         except Exception as e:
             self.main_window._log(f"✗ 加载大地图失败: {str(e)}")
@@ -435,11 +444,60 @@ class UIHandlers:
             height = self.main_window.bigmap_view.scene.height()
 
             self.main_window._log(f"✓ 自动加载大地图: {width}x{height}")
+            self._check_locate_btn_state()
             return True
 
         except Exception as e:
             self.main_window._log(f"⚠ 自动加载大地图失败: {str(e)}")
             return False
+
+    def _check_locate_btn_state(self):
+        """检查并更新定位按钮状态"""
+        config = self.main_window.config_manager.load()
+        bigmap_path = config.get('bigmap_path')
+        is_streaming = self.main_window.stream_manager.is_streaming
+        
+        from pathlib import Path
+        has_bigmap = bigmap_path and Path(bigmap_path).exists()
+        
+        self.main_window.locate_btn.setEnabled(bool(has_bigmap and is_streaming))
+
+    def _on_locate_toggled(self, checked):
+        """处理定位按钮切换"""
+        if checked:
+            config = self.main_window.config_manager.load()
+            bigmap_path = config.get('bigmap_path')
+            
+            if not bigmap_path:
+                self.main_window.locate_btn.setChecked(False)
+                return
+                
+            self.main_window.locate_btn.setText("⏹️ 停止定位")
+            self.main_window._log("📍 开始实时定位...")
+            
+            if not hasattr(self.main_window, 'localization_thread'):
+                from ..localization.localization_thread import LocalizationThread
+                self.main_window.localization_thread = LocalizationThread(self.main_window)
+                self.main_window.localization_thread.located.connect(self._on_located)
+                
+            self.main_window.localization_thread.start_localization(bigmap_path)
+        else:
+            self.main_window.locate_btn.setText("📍 开始定位")
+            self.main_window._log("⏹️ 已停止实时定位")
+            
+            if hasattr(self.main_window, 'localization_thread'):
+                self.main_window.localization_thread.stop_localization()
+                
+            self.main_window.bigmap_view.update_marker(0, 0, False)
+
+    def _on_located(self, result):
+        """处理定位结果"""
+        if result and result.get("final", {}).get("success"):
+            center = result["final"]["center"]
+            self.main_window.bigmap_view.update_marker(center[0], center[1], True)
+        else:
+            # 定位失败则隐藏标记
+            self.main_window.bigmap_view.update_marker(0, 0, False)
 
     def _on_frame_received(self, frame):
         """
@@ -459,6 +517,10 @@ class UIHandlers:
             minimap = self._extract_minimap(frame)
             if minimap is not None:
                 self.main_window.minimap_display.update_frame(minimap)
+                
+                # 如果定位线程在运行，发送小地图
+                if hasattr(self.main_window, 'localization_thread') and self.main_window.localization_thread._running:
+                    self.main_window.localization_thread.update_minimap(minimap)
 
     def _calculate_minimap_coords(self, frame):
         """
