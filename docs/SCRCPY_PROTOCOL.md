@@ -229,24 +229,25 @@ control_sock, _ = server_sock.accept()  # 第二个连接是控制流
 
 ### 4.1 元数据接收
 
-**Dummy Byte**:
-- 第一个字节必须是 `0x00`
-- 用于同步协议版本
+**Dummy Byte（可选）**:
+- 在不同版本/不同连接模式下，首字节 `0x00` 可能存在也可能不存在
+- 客户端需要同时兼容两种布局：
+  - `name[64] + meta[12]`
+  - `dummy[1]==0x00 + name[64] + meta[12]`
 
-**实现**:
+**兼容实现（推荐）**:
 ```python
-dummy = sock.recv(1)
-if dummy != b'\x00':
-    # 警告：协议版本可能不匹配
-```
+first = sock.recv(1)
+if first == b"\x00":
+    name_data = sock.recv(64)
+else:
+    name_data = first + sock.recv(63)
 
-**设备信息**（简化实现）:
-```python
-device_info = {
-    "name": "Android Device",
-    "width": max_size,
-    "height": max_size
-}
+device_name = name_data.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
+codec_meta = sock.recv(12)
+codec_id = int.from_bytes(codec_meta[0:4], "big")
+width = int.from_bytes(codec_meta[4:8], "big")
+height = int.from_bytes(codec_meta[8:12], "big")
 ```
 
 ---
@@ -551,11 +552,13 @@ if current_time - last_fps_time >= 1.0:
 
 ### 9.2 版本检测
 
-**Dummy Byte 检测**:
+**Dummy Byte 检测（可选）**:
 ```python
-dummy = sock.recv(1)
-if dummy != b'\x00':
-    print(f"警告: 协议版本可能不匹配，收到 {dummy.hex()}")
+first = sock.recv(1)
+if first == b"\x00":
+    name_data = sock.recv(64)
+else:
+    name_data = first + sock.recv(63)
 ```
 
 ---

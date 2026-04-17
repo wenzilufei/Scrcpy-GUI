@@ -12,6 +12,8 @@ import numpy as np
 from PySide6.QtCore import QThread, Signal
 
 from ..utils import logger
+from ..utils.subprocess_compat import subprocess_kwargs
+from .scrcpy_metadata import parse_device_name, parse_codec_meta
 
 
 class ScrcpySocketThread(QThread):
@@ -149,7 +151,7 @@ class ScrcpySocketThread(QThread):
             cmd,
             capture_output=True,
             timeout=timeout,
-            creationflags=subprocess.CREATE_NO_WINDOW
+            **subprocess_kwargs()
         )
 
     def _start_server(self):
@@ -186,7 +188,7 @@ class ScrcpySocketThread(QThread):
             [self.adb_path, "shell", server_cmd],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NO_WINDOW
+            **subprocess_kwargs()
         )
 
         # 等待 server 启动 - 2秒是经验值，确保 server 进程完成初始化
@@ -210,20 +212,33 @@ class ScrcpySocketThread(QThread):
         """
         接收设备元数据（scrcpy 3.x 协议 - reverse 模式）
 
-        协议格式（reverse 模式，无 dummy byte）：
-        1. 设备名 (64字节, null-terminated) - 在第一个 socket 上发送
-        2. 视频流元数据 (12字节):
+        协议格式（reverse 模式，dummy byte 可选）：
+        1. 可选 dummy byte (1字节, 0x00)
+        2. 设备名 (64字节, null-terminated) - 在第一个 socket 上发送
+        3. 视频流元数据 (12字节):
            - codec_id (4字节, big-endian uint32)
            - video_width (4字节, big-endian uint32)
            - video_height (4字节, big-endian uint32)
         """
         try:
-            # reverse 模式下没有 dummy byte，直接接收设备名
-            name_data = self._recv_exact(64)
-            if not name_data:
+            first = self._recv_exact(1)
+            if not first:
                 self.status_changed.emit("元数据接收错误: 设备名读取失败")
                 return None
-            device_name = name_data.split(b'\x00', 1)[0].decode('utf-8', errors='replace')
+
+            if first == b"\x00":
+                name_data = self._recv_exact(64)
+                if not name_data:
+                    self.status_changed.emit("元数据接收错误: 设备名读取失败")
+                    return None
+            else:
+                rest = self._recv_exact(63)
+                if not rest:
+                    self.status_changed.emit("元数据接收错误: 设备名读取失败")
+                    return None
+                name_data = first + rest
+
+            device_name = parse_device_name(name_data)
             logger.info(f"设备名: {device_name}")
 
             # 接收视频流元数据（12字节）
@@ -232,10 +247,7 @@ class ScrcpySocketThread(QThread):
                 self.status_changed.emit("元数据接收错误: 视频元数据读取失败")
                 return None
 
-            # 解析 codec metadata
-            codec_id = int.from_bytes(codec_meta[0:4], byteorder='big')
-            video_width = int.from_bytes(codec_meta[4:8], byteorder='big')
-            video_height = int.from_bytes(codec_meta[8:12], byteorder='big')
+            codec_id, video_width, video_height = parse_codec_meta(codec_meta)
 
             logger.info(f"Codec ID: {codec_id}, 分辨率: {video_width}x{video_height}")
 

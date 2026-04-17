@@ -3,7 +3,10 @@ ADB 工具函数
 """
 
 import subprocess
+import shutil
 from pathlib import Path
+
+from .subprocess_compat import subprocess_kwargs
 
 
 def find_tools():
@@ -11,11 +14,18 @@ def find_tools():
     tools_dir = Path(__file__).parent.parent.parent / "tools"
     paths = {"adb": None, "scrcpy_server": None}
 
+    adb_in_path = shutil.which("adb")
+    if adb_in_path:
+        paths["adb"] = adb_in_path
+
     for item in tools_dir.iterdir():
         if item.is_dir() and item.name.startswith("scrcpy"):
-            adb = item / "adb.exe"
-            if adb.exists():
-                paths["adb"] = str(adb)
+            if paths["adb"] is None:
+                adb_candidates = [item / "adb", item / "adb.exe"]
+                for adb in adb_candidates:
+                    if adb.exists():
+                        paths["adb"] = str(adb)
+                        break
             server = item / "scrcpy-server"
             if server.exists():
                 paths["scrcpy_server"] = str(server)
@@ -40,7 +50,7 @@ def run_adb_command(adb_path, args, timeout=5):
             [adb_path] + args,
             capture_output=True,
             timeout=timeout,
-            creationflags=subprocess.CREATE_NO_WINDOW
+            **subprocess_kwargs()
         )
         output = result.stdout.decode('utf-8', errors='ignore').strip()
         return result.returncode == 0, output

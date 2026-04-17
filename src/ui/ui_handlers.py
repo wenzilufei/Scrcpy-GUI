@@ -285,7 +285,6 @@ class UIHandlers:
         self.main_window.stop_btn.setEnabled(False)
         self.main_window.screenshot_btn.setEnabled(False)  # 停止推流时禁用截图
         
-        # 停止定位
         if self.main_window.locate_btn.isChecked():
             self.main_window.locate_btn.setChecked(False)
         self.main_window.locate_btn.setEnabled(False)
@@ -397,9 +396,9 @@ class UIHandlers:
         """延迟执行缩放适应"""
         self.main_window.bigmap_view.zoom_fit()
         
-        # 更新缩放比例显示
-        zoom_percent = int(self.main_window.bigmap_view.zoom_factor * 100)
-        self.main_window.zoom_label.setText(f"{zoom_percent}%")
+        if hasattr(self.main_window, "zoom_label"):
+            zoom_percent = int(self.main_window.bigmap_view.zoom_factor * 100)
+            self.main_window.zoom_label.setText(f"{zoom_percent}%")
 
     def _save_bigmap_path(self, file_path):
         """
@@ -496,7 +495,6 @@ class UIHandlers:
             center = result["final"]["center"]
             self.main_window.bigmap_view.update_marker(center[0], center[1], True)
         else:
-            # 定位失败则隐藏标记
             self.main_window.bigmap_view.update_marker(0, 0, False)
 
     def _on_frame_received(self, frame):
@@ -518,8 +516,7 @@ class UIHandlers:
             if minimap is not None:
                 self.main_window.minimap_display.update_frame(minimap)
                 
-                # 如果定位线程在运行，发送小地图
-                if hasattr(self.main_window, 'localization_thread') and self.main_window.localization_thread._running:
+                if hasattr(self.main_window, 'localization_thread') and self.main_window.localization_thread.isRunning():
                     self.main_window.localization_thread.update_minimap(minimap)
 
     def _calculate_minimap_coords(self, frame):

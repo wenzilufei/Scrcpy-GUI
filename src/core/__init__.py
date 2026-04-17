@@ -1,4 +1,7 @@
 """核心模块"""
-from .streamer import ScrcpySocketThread
+try:
+    from .streamer import ScrcpySocketThread
+except ModuleNotFoundError:
+    ScrcpySocketThread = None
 
 __all__ = ['ScrcpySocketThread']

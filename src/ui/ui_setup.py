@@ -266,7 +266,7 @@ def _create_action_section(main_window):
     main_window.locate_btn.setObjectName("locate")
     main_window.locate_btn.setToolTip("开启/关闭大地图实时定位")
     main_window.locate_btn.setCheckable(True)
-    main_window.locate_btn.setEnabled(False) # 默认禁用，需推流且加载大地图
+    main_window.locate_btn.setEnabled(False)
     action_layout.addWidget(main_window.locate_btn)
 
     action_group.setLayout(action_layout)
@@ -408,16 +408,14 @@ class BigMapView(QGraphicsView):
         在地图上更新定位标记
         """
         from PySide6.QtWidgets import QGraphicsEllipseItem
-        from PySide6.QtGui import QPen, QColor, QBrush
+        from PySide6.QtGui import QPen, QColor
         
         if not hasattr(self, 'marker_item'):
-            # 创建红色空心圆圈标记
             self.marker_item = QGraphicsEllipseItem(-15, -15, 30, 30)
             pen = QPen(QColor(255, 0, 0))
             pen.setWidth(3)
             self.marker_item.setPen(pen)
             self.scene.addItem(self.marker_item)
-            # 设置高Z值以确保显示在图片上层
             self.marker_item.setZValue(10)
             
         if success:
@@ -457,8 +455,6 @@ def _create_bigmap_section(main_window):
     toolbar.addWidget(zoom_orig_btn)
 
     toolbar.addStretch()
-    
-    toolbar.addStretch()
     bigmap_layout.addLayout(toolbar)
     
     # 大地图视图（带缩放功能）
@@ -466,6 +462,13 @@ def _create_bigmap_section(main_window):
     main_window.bigmap_view.setMinimumSize(400, 300)
     # 设置 Expanding 策略，让大地图区域占据所有可用空间
     main_window.bigmap_view.setSizePolicy(QSP.Policy.Expanding, QSP.Policy.Expanding)
+
+    main_window.zoom_label = QLabel("100%")
+    main_window.zoom_label.setStyleSheet("color: #00d4ff; padding: 0 6px; font-weight: bold;")
+    toolbar.insertWidget(2, main_window.zoom_label)
+    main_window.bigmap_view.zoom_changed.connect(
+        lambda z: main_window.zoom_label.setText(f"{int(z * 100)}%")
+    )
 
     bigmap_layout.addWidget(main_window.bigmap_view, 1)
     

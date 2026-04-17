@@ -6,6 +6,8 @@
 import subprocess
 from PySide6.QtCore import QObject, QTimer, Signal
 
+from .subprocess_compat import subprocess_kwargs
+
 
 class DeviceMonitor(QObject):
     """设备监控器"""
@@ -54,7 +56,7 @@ class DeviceMonitor(QObject):
                 [self.adb_path, "devices"],
                 capture_output=True,
                 timeout=2,
-                creationflags=subprocess.CREATE_NO_WINDOW
+                **subprocess_kwargs()
             )
 
             output = result.stdout.decode('utf-8', errors='ignore')

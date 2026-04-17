@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import time
 
+from ..utils import logger
 from .orb_matcher import ORBMatcher
 
 
@@ -205,7 +206,7 @@ class HybridLocator:
         else:
             bigmap_gray = bigmap_img.copy()
 
-        print("   📍 步骤1: NCC 粗定位...")
+        logger.debug("📍 步骤1: NCC 粗定位...")
         ncc_result = self.ncc_coarse_locate(minimap_img, bigmap_gray)
         result["ncc_coarse"] = ncc_result
 
@@ -217,19 +218,20 @@ class HybridLocator:
             }
             return result
 
-        print(f"      ✅ NCC 完成！坐标：{ncc_result['center']}，"
-              f"置信度：{ncc_result['confidence']}%，耗时：{ncc_result['time_ms']}ms")
+        logger.info(
+            f"✅ NCC 完成！坐标：{ncc_result['center']}，置信度：{ncc_result['confidence']}%，耗时：{ncc_result['time_ms']}ms"
+        )
 
-        print("   🔍 步骤2: 裁剪局部区域...")
+        logger.debug("🔍 步骤2: 裁剪局部区域...")
         local_region = self.extract_local_region(
             bigmap_img,
             ncc_result["center"],
             self.search_radius
         )
 
-        print(f"      ✅ 局部区域：{local_region['size'][0]} × {local_region['size'][1]} px")
+        logger.debug(f"✅ 局部区域：{local_region['size'][0]} × {local_region['size'][1]} px")
 
-        print("   ⚡ 步骤3: ORB 精修...")
+        logger.debug("⚡ 步骤3: ORB 精修...")
         orb_result = self.orb_fine_tune(minimap_img, local_region)
         result["orb_fine"] = orb_result
 
@@ -260,11 +262,12 @@ class HybridLocator:
                 }
             }
 
-            print(f"      ✅ ORB 精修完成！")
-            print(f"         最终坐标：{final_center}")
-            print(f"         调整量：({result['final']['adjustment'][0]}, "
-                  f"{result['final']['adjustment'][1]}) px")
-            print(f"         调整幅度：{result['final']['adjustment_magnitude']} px")
+            logger.info("✅ ORB 精修完成！")
+            logger.debug(f"最终坐标：{final_center}")
+            logger.debug(
+                f"调整量：({result['final']['adjustment'][0]}, {result['final']['adjustment'][1]}) px"
+            )
+            logger.debug(f"调整幅度：{result['final']['adjustment_magnitude']} px")
         else:
             result["final"] = {
                 "success": True,
@@ -280,8 +283,8 @@ class HybridLocator:
                 }
             }
 
-            print(f"      ⚠️ ORB 精修失败，使用 NCC 结果")
+            logger.warning("⚠️ ORB 精修失败，使用 NCC 结果")
 
-        print(f"   ⏱️ 总耗时：{result['final']['total_time_ms']} ms")
+        logger.debug(f"⏱️ 总耗时：{result['final']['total_time_ms']} ms")
 
         return result
